@@ -5,10 +5,20 @@ import numpy as np
 import deepxde as dde
 from deepxde.backend import tf
 
+dde.config.set_default_float("float16")
+tf.keras.mixed_precision.set_global_policy("mixed_float16")
+
 
 def gelu(x):
     return (
-        0.5 * x * (1 + tf.math.tanh(tf.math.sqrt(2 / np.pi) * (x + 0.044715 * x**3)))
+        0.5
+        * x
+        * (
+            1
+            + tf.math.tanh(
+                tf.cast(tf.math.sqrt(2 / np.pi), tf.float16) * (x + 0.044715 * x**3)
+            )
+        )
     )
 
 
@@ -20,15 +30,15 @@ def main():
     train_data = np.load(f"../../../data/poisson/poisson_train_ls_{ls_train}_5082.npz")
     test_data = np.load(f"../../../data/poisson/poisson_test_ls_{ls_test}_5082.npz")
     X_train = (
-        np.repeat(train_data["X_train0"], 5082, axis=0),
-        np.tile(train_data["X_train1"], (1000, 1)),
+        np.repeat(train_data["X_train0"], 5082, axis=0).astype(np.float16),
+        np.tile(train_data["X_train1"], (1000, 1)).astype(np.float16),
     )
-    y_train = train_data["y_train"].reshape(-1, 1)
+    y_train = train_data["y_train"].reshape(-1, 1).astype(np.float16)
     X_test = (
-        np.repeat(test_data["X_test0"], 5082, axis=0),
-        np.tile(test_data["X_test1"], (100, 1)),
+        np.repeat(test_data["X_test0"], 5082, axis=0).astype(np.float16),
+        np.tile(test_data["X_test1"], (100, 1)).astype(np.float16),
     )
-    y_test = test_data["y_test"].reshape(-1, 1)
+    y_test = test_data["y_test"].reshape(-1, 1).astype(np.float16)
     data = dde.data.Triple(
         X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test
     )
@@ -46,6 +56,7 @@ def main():
         lr=lr,
         metrics=["l2 relative error"],
         decay=("inverse time", iterations // 5, 0.5),
+        loss="mean l2 relative error",
     )
 
     checker = dde.callbacks.ModelCheckpoint(
